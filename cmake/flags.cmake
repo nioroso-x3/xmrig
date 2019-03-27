@@ -12,10 +12,10 @@ endif()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES GNU)
 
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-strict-aliasing -flax-vector-conversions -g -pg -mcpu=native -mtune=native -mvsx")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-strict-aliasing -flax-vector-conversions -Ofast -mcpu=native -mtune=native -mvsx")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ")
 
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -fno-exceptions -fno-rtti -Wno-class-memaccess -flax-vector-conversions -g -pg -mcpu=native -mtune=native -mvsx")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ofast -Wall -fno-exceptions -fno-rtti -Wno-class-memaccess -flax-vector-conversions -g -pg -mcpu=native -mtune=native -mvsx")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}  -s")
 
     add_definitions(/D_GNU_SOURCE)
