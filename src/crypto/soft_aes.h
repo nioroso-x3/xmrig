@@ -30,11 +30,8 @@
 #if defined(XMRIG_ARM)
 #   include "crypto/SSE2NEON.h"
 #elif defined(__GNUC__)
-#   include <x86intrin.h>
-#else
-#   include <intrin.h>
+#   include <crypto/SSE2ALTIVEC.h>
 #endif
-
 #include <inttypes.h>
 
 
@@ -130,7 +127,7 @@ static inline uint32_t sub_word(uint32_t key)
          saes_sbox[key & 0xff];
 }
 
-#if defined(__clang__) || defined(XMRIG_ARM)
+#if defined(__clang__) || defined(XMRIG_ARM) || defined(__PPC64__)
 static inline uint32_t _rotr(uint32_t value, uint32_t amount)
 {
     return (value >> amount) | (value << ((32 - amount) & 31));
@@ -144,3 +141,20 @@ static inline __m128i soft_aeskeygenassist(__m128i key)
     const uint32_t X3 = sub_word(_mm_cvtsi128_si32(_mm_shuffle_epi32(key, 0xFF)));
     return _mm_set_epi32(_rotr(X3, 8) ^ rcon, X3, _rotr(X1, 8) ^ rcon, X1);
 }
+
+static inline __m128i v_rev(__m128i tmp1)
+{
+    return(vec_perm(tmp1,tmp1,(__m128i){ 0xf,0xe,0xd,0xc,0xb,0xa,0x9,0x8,0x7,0x6,0x5,0x4,0x3,0x2,0x1,0x0 }));
+}
+
+static inline __m128i _mm_aesenc_si128(__m128i in, __m128i key)
+{
+    return v_rev(__builtin_crypto_vcipher(v_rev(in),v_rev(key)));
+}
+
+static inline __m128i _mm_aeskeygenassist_si128(__m128i key, uint8_t rcon)
+{
+    key = __builtin_crypto_vsbox(vec_perm(key,key,(__m128i){0x4,0x5,0x6,0x7, 0x5,0x6,0x7,0x4, 0xc,0xd,0xe,0xf, 0xd,0xe,0xf,0xc}));
+    return vec_xor(key,(__m128i){0,0,0,0, rcon,0,0,0, 0,0,0,0, rcon,0,0,0});
+}
+

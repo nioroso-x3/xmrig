@@ -57,6 +57,7 @@ struct cryptonight_ctx {
     cn_mainloop_double_fun_ms_abi generated_code_double;
     cryptonight_r_data generated_code_data;
     cryptonight_r_data generated_code_double_data;
+    void* v4jit;
 };
 
 

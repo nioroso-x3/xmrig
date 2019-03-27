@@ -190,7 +190,7 @@
     r##part[2] = (uint32_t)(h##part[13]); \
     r##part[3] = (uint32_t)(h##part[13] >> 32); \
   } \
-  v4_random_math_init<VARIANT>(code##part, height);
+  v4_random_math_init<VARIANT>(code##part, height);\
 
 #define VARIANT4_RANDOM_MATH(part, al, ah, cl, bx0, bx1) \
   if ((VARIANT == xmrig::VARIANT_WOW) || (VARIANT == xmrig::VARIANT_4)) { \
@@ -200,7 +200,8 @@
     r##part[6] = static_cast<uint32_t>(_mm_cvtsi128_si32(bx0)); \
     r##part[7] = static_cast<uint32_t>(_mm_cvtsi128_si32(bx1)); \
     r##part[8] = static_cast<uint32_t>(_mm_cvtsi128_si32(_mm_srli_si128(bx1, 8))); \
-    v4_random_math(code##part, r##part); \
+    v4jit(r##part,&code##part->dst_index,&code##part->src_index,&code##part->C); \
   }
+//v4_random_math(code##part,r##part);\
 
 #endif /* XMRIG_CRYPTONIGHT_MONERO_H */

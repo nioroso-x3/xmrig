@@ -104,7 +104,7 @@ set(HEADERS_CRYPTO
 if (XMRIG_ARM)
     set(HEADERS_CRYPTO "${HEADERS_CRYPTO}" src/crypto/CryptoNight_arm.h)
 else()
-    set(HEADERS_CRYPTO "${HEADERS_CRYPTO}" src/crypto/CryptoNight_x86.h)
+    set(HEADERS_CRYPTO "${HEADERS_CRYPTO}" src/crypto/CryptoNight_ppc64.h)
 endif()
 
 set(SOURCES
@@ -207,22 +207,14 @@ find_package(UV REQUIRED)
 
 include(cmake/flags.cmake)
 
-if (WITH_LIBCPUID)
-    add_subdirectory(src/3rdparty/libcpuid)
-
-    include_directories(src/3rdparty/libcpuid)
-    set(CPUID_LIB cpuid)
-    set(SOURCES_CPUID src/core/cpu/AdvancedCpuInfo.h src/core/cpu/AdvancedCpuInfo.cpp src/core/cpu/Cpu.cpp)
-else()
     add_definitions(/DXMRIG_NO_LIBCPUID)
     set(SOURCES_CPUID src/common/cpu/BasicCpuInfo.h src/common/cpu/Cpu.cpp)
 
     if (XMRIG_ARM)
         set(SOURCES_CPUID ${SOURCES_CPUID} src/common/cpu/BasicCpuInfo_arm.cpp)
     else()
-        set(SOURCES_CPUID ${SOURCES_CPUID} src/common/cpu/BasicCpuInfo.cpp)
+        set(SOURCES_CPUID ${SOURCES_CPUID} src/common/cpu/BasicCpuInfo_ppc64.cpp)
     endif()
-endif()
 
 include(cmake/OpenSSL.cmake)
 include(cmake/asm.cmake)

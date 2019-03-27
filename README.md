@@ -28,23 +28,17 @@ Originally based on cpuminer-multi with heavy optimizations/rewrites and removin
 * [Contacts](#contacts)
 
 ## Features
-* High performance.
-* Official Windows support.
-* Small Windows executable, without dependencies.
-* x86/x64 support.
+* Initial port of CN/R with JIT for ppc64le 
 * Support for backup (failover) mining server.
 * keepalived support.
 * Command line options compatible with cpuminer.
 * CryptoNight-Lite support for AEON.
-* Smart automatic [CPU configuration](https://github.com/xmrig/xmrig/wiki/Threads).
 * Nicehash support
 * It's open source software.
 
 ## Download
-* Binary releases: https://github.com/xmrig/xmrig/releases
 * Git tree: https://github.com/xmrig/xmrig.git
-  * Clone with `git clone https://github.com/xmrig/xmrig.git` :hammer: [Build instructions](https://github.com/xmrig/xmrig/wiki/Build).
-
+* Compile with GCC 8 or clang 7 or newer. Clang seems to be generate better code for ppc by default now.
 ## Usage
 Use [config.xmrig.com](https://config.xmrig.com/xmrig) to generate, edit or share configurations.
 
@@ -104,14 +98,6 @@ Also you can use configuration via config file, default name **config.json**. So
 |----|------------------|--------------|
 | 1  | 1 (Single)       | yes          |
 | 2  | 2 (Double)       | yes          |
-| 3  | 1 (Single)       | no           |
-| 4  | 2 (Double)       | no           |
-| 5  | 3 (Triple)       | yes          |
-| 6  | 4 (Quard)        | yes          |
-| 7  | 5 (Penta)        | yes          |
-| 8  | 3 (Triple)       | no           |
-| 9  | 4 (Quard)        | no           |
-| 10 | 5 (Penta)        | no           |
 
 ## Common Issues
 ### HUGE PAGES unavailable
@@ -120,12 +106,11 @@ Also you can use configuration via config file, default name **config.json**. So
 
 ## Other information
 * No HTTP support, only stratum protocol support.
-* Default donation 5% (5 minutes in 100 minutes) can be reduced to 1% via option `donate-level`.
+* Default donation 4% (5 minutes in 100 minutes) can be disabled via option `donate-level`.
 
 
 ### CPU mining performance
-* **Intel i7-7700** - 307 H/s (4 threads)
-* **AMD Ryzen 7 1700X** - 560 H/s (8 threads)
+* POWER8 @ 2.8 GHz, 1 core running 4 single threads -> 16 H/s per core, currently optimizing JIT, interpreter gets half this number. CNv8 was around 60.
 
 Please note performance is highly dependent on system load. The numbers above are obtained on an idle system. Tasks heavily using a processor cache, such as video playback, can greatly degrade hashrate. Optimal number of threads depends on the size of the L3 cache of a processor, 1 thread requires 2 MB of cache.
 
@@ -137,10 +122,5 @@ Please note performance is highly dependent on system load. The numbers above ar
 * Enable fast memory (Large/Huge pages).
 
 ## Donations
-* XMR: `48edfHu7V9Z84YzzMa6fUueoELZ9ZRXq9VetWzYGzKt52XU5xvqgzYnDK9URnRoJMk1j8nLwEVsaSWJ4fhdUyZijBGUicoD`
-* BTC: `1P7ujsXeX7GxQwHNnJsRMgAdNkFZmNVqJT`
+* XMR: `42UwBFuWj9uM7RjH15MXAFV7oLWUC9yLTArz4bmD3gbVWu1obYRUDe8K9v8StqXPhP2Uz1BJZgDQTUVhvT1cHFMBHA6aPg2`
 
-## Contacts
-* support@xmrig.com
-* [reddit](https://www.reddit.com/user/XMRig/)
-* [twitter](https://twitter.com/xmrig_dev)

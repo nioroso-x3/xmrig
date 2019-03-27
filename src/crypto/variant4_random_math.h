@@ -1,10 +1,12 @@
 #ifndef VARIANT4_RANDOM_MATH_H
 #define VARIANT4_RANDOM_MATH_H
-
+#include <sys/mman.h>
 extern "C"
 {
     #include "c_blake256.h"
 }
+typedef uint64_t(*fn4)(uint32_t*,uint8_t*,uint8_t*,uint32_t*);
+#define INST_LEN  2048
 
 enum V4_Settings
 {
@@ -54,12 +56,12 @@ enum V4_InstructionDefinition
 
 struct V4_Instruction
 {
-	uint8_t opcode;
+	uint16_t opcode;   //pad to 64bits
 	uint8_t dst_index;
 	uint8_t src_index;
 	uint32_t C;
 };
-
+typedef struct V4_Instruction v4_ins; 
 #ifndef FORCEINLINE
 #ifdef __GNUC__
 #define FORCEINLINE __attribute__((always_inline)) inline
@@ -80,10 +82,183 @@ struct V4_Instruction
 #endif
 #endif
 
+
+
+//powerpc code hex
+uint32_t prolog[] = {
+0x7c0802a6,   //mflr r0 save lr to r0
+0xf8010010,  //std r0 16(r1) save r0 to stack
+0x0000000 //end stream
+};
+
+//after prologue and before every op
+uint32_t dstA_srcV[] = {
+//this segment loads the DST address at R7 and the SRC value at R8 before executing an op
+0x88e40000,   // lbz     r7,0(r4)
+0x1ce70004,   // mulli   r7,r7,4
+0x7ce33a14,   //  add     r7,r3,r7
+0x89050000,   //  lbz     r8,0(r5)
+0x1d080004,   //  mulli   r8,r8,4
+0x7d034214,   //  add     r8,r3,r8
+0x81080000,   //  lwz     r8,0(r8)
+0x00000000  // end stream
+};
+
+uint32_t mul_[] = {
+0x81270000,   //lwz r9,0(r7) load DST value to R9
+0x7d0849d6,   //mullw r8,r8,r9 multiply SRC values at R8 with DST at R9
+0x91070000,   //stw r8,0(r7) store result in R8 to DST address in R7
+0x00000000
+};
+
+uint32_t add_[] = {
+0x81260000,  //lwz r9,0(r6) load C from the addres at R6 to R9
+0x81470000,  //lwz r10,0(r7) load DST value from R7 to R10
+0x7d084a14,  //add r8,r8,r9 sum R8 and R9 (SRC+C)
+0x7d0a4214,  //add r8,r10,r8 sum R8 and R10 (SRC+C)+DST
+0x91070000,  //stw r8,0(r7)  store result at DST address
+0x00000000
+};
+
+uint32_t sub_[] ={
+0x81270000,   //lwz r9,0(r7) load DST value to R9
+0x7d084850,   //subf r8,r8,r9 subtract SRC from DST
+0x91070000,   //stw r8,0(r7) tore result in R8 to DST address in R7
+0x00000000
+};
+
+uint32_t ror_u[] = {
+0x81270000, //    lwz     r9,0(r7)
+0x550806fe, //    clrlwi  r8,r8,27
+0x7d4800d0, //    neg     r10,r8
+0x554a06fe, //    clrlwi  r10,r10,27
+0x7d2a5030, //    slw     r10,r9,r10
+0x7d284430, //    srw     r8,r9,r8
+0x7d494378, //    or      r9,r10,r8
+0x91270000, //    stw     r9,0(r7)
+0x00000000
+};
+
+uint32_t rol_u[] = {
+0x81270000,  //   lwz     r9,0(r7)
+0x550806fe,  //   clrlwi  r8,r8,27
+0x7d4800d0,  //   neg     r10,r8
+0x554a06fe,  //   clrlwi  r10,r10,27
+0x7d2a5430,  //   srw     r10,r9,r10
+0x7d284030,  //   slw     r8,r9,r8
+0x7d494378,  //   or      r9,r10,r8
+0x91270000,  //   stw     r9,0(r7)
+0x00000000
+};
+
+uint32_t xor_[] ={
+0x81270000,   //lwz r9,0(r7) load DST value to R9
+0x7d084a78,   //xor r8,r9,r8 SRC with DST value
+0x91070000,   //stw r8,0(r7) store result in R8 to DST address in R7
+0x00000000
+};
+
+//after every op ends
+uint32_t inc_p[] = {
+//increment all pointers at the end of op
+0x38840008, //addi r4,8,r4 add 8 to r4
+0x38a50008, //addi r5,8,r5 add 8 to r5
+0x38c60008, //addi r6,8,r6 add 8 to r6
+0x00000000  //end stream
+};
+
+uint32_t epilog[] = {
+0xe8010010 ,  //ld r0,16(r1) load lr from stack to r0
+0x7c0803a6 ,  //restore link register
+0x4e800020, //jump to lr
+0x00000000 //end stream
+};
+
+void* JIT_init() {
+  //allocate exec memory
+  //printf("Started JIT");
+  uint32_t* memory = (uint32_t*)mmap(NULL,             // address
+                      INST_LEN*sizeof(uint32_t),             // size
+                      PROT_READ | PROT_WRITE | PROT_EXEC,
+                      MAP_PRIVATE | MAP_ANONYMOUS,
+                      -1,               // fd (not used here)
+                      0);               // offset (not used here)
+  #if __BYTE_ORDER == __BIG_ENDIAN
+  ((uint64_t*)memory)[(INST_LEN/2)-1] = memory;
+  #endif
+  //printf("Started JIT at %p\n",memory);
+  return (void*)memory;
+}
+
+void JIT_load(void* execmem, uint32_t* code){
+  uint32_t idx = 0;
+  uint32_t* inst = (uint32_t*)execmem;
+  for (;idx < INST_LEN; ++idx){
+    if (inst[idx] == 0x00000000){
+      inst = inst+idx;
+      //printf("Currently %d instructions in buffer\n",idx);
+      break;
+    }
+  }
+  for (idx = 0; code[idx] != 0x00000000; ++idx){
+    inst[idx] = code[idx];
+  }
+
+}
+void JIT_end(void* execmem){
+  //printf("Ended JIT at %p\n",execmem);
+  munmap(execmem, INST_LEN*sizeof(uint32_t));
+}
+
+void* JIT_compile(v4_ins* code)
+{
+  void* f = JIT_init();
+  JIT_load(f,prolog);
+  for (uint32_t i = 0; i < 70; ++i)
+	{ 
+    //printf("INS %u %u %u\n",code->opcode,code->dst_index,code->src_index);
+    
+    JIT_load(f,dstA_srcV);
+		switch (code[i].opcode) 
+		{ 
+		case MUL: 
+      JIT_load(f,mul_);
+			break; 
+		case ADD: 
+      JIT_load(f,add_);
+			break; 
+		case SUB: 
+      JIT_load(f,sub_);
+			break; 
+		case ROR: 
+      JIT_load(f,ror_u);
+			break; 
+		case ROL: 
+      JIT_load(f,rol_u);
+			break; 
+		case XOR: 
+      JIT_load(f,xor_);
+			break; 
+		case RET: 
+      JIT_load(f,epilog);
+      return f;
+			break; 
+		default: 
+			UNREACHABLE_CODE; 
+			break; 
+		}
+    JIT_load(f,inc_p);
+	}
+}
+
+
+
 // Random math interpreter's loop is fully unrolled and inlined to achieve 100% branch prediction on CPU:
 // every switch-case will point to the same destination on every iteration of Cryptonight main loop
 //
 // This is about as fast as it can get without using low-level machine code generation
+
+
 template<typename v4_reg>
 static void v4_random_math(const struct V4_Instruction* code, v4_reg* r)
 {
@@ -182,6 +357,9 @@ static FORCEINLINE void check_data(size_t* data_index, const size_t bytes_needed
 
 // Generates as many random math operations as possible with given latency and ALU restrictions
 // "code" array must have space for NUM_INSTRUCTIONS_MAX+1 instructions
+
+
+
 template<xmrig::Variant VARIANT>
 static int v4_random_math_init(struct V4_Instruction* code, const uint64_t height)
 {
@@ -444,5 +622,6 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 
 	return code_size;
 }
+
 
 #endif

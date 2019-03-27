@@ -36,7 +36,7 @@
 #if defined(XMRIG_ARM)
 #   include "crypto/CryptoNight_arm.h"
 #else
-#   include "crypto/CryptoNight_x86.h"
+#   include "crypto/CryptoNight_ppc64.h"
 #endif
 
 

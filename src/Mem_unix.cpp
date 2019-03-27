@@ -46,7 +46,7 @@ void Mem::allocate(MemInfo &info, bool enabled)
     info.hugePages = 0;
 
     if (!enabled) {
-        info.memory = static_cast<uint8_t*>(_mm_malloc(info.size, 4096));
+        info.memory = static_cast<uint8_t*>(malloc(info.size));
 
         return;
     }
@@ -85,7 +85,7 @@ void Mem::release(MemInfo &info)
         munmap(info.memory, info.size);
     }
     else {
-        _mm_free(info.memory);
+        free(info.memory);
     }
 }
 

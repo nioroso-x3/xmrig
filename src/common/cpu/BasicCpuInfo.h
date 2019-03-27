@@ -52,7 +52,7 @@ protected:
     inline int32_t sockets() const override         { return 1; }
     inline int32_t threads() const override         { return m_threads; }
 
-#   if defined(__x86_64__) || defined(_M_AMD64) || defined (__arm64__) || defined (__aarch64__)
+#   if defined(__x86_64__) || defined(_M_AMD64) || defined (__arm64__) || defined (__aarch64__) || defined (__PPC64__)
     inline bool isX64() const override { return true; }
 #   else
     inline bool isX64() const override { return false; }

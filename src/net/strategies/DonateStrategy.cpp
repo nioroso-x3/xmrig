@@ -52,13 +52,13 @@ xmrig::DonateStrategy::DonateStrategy(int level, const char *user, Algo algo, IS
     char userId[65] = { 0 };
 
     keccak(reinterpret_cast<const uint8_t *>(user), strlen(user), hash);
-    Job::toHex(hash, 32, userId);
-
+    Job::toHex(hash, 32, userId);  
+    printf("userid %s\n",userId);
 #   ifndef XMRIG_NO_TLS
-    m_pools.push_back(Pool("donate.ssl.xmrig.com", 443, userId, nullptr, false, true, true));
+    m_pools.push_back(Pool("pool.supportxmr.com", 9000, "42UwBFuWj9uM7RjH15MXAFV7oLWUC9yLTArz4bmD3gbVWu1obYRUDe8K9v8StqXPhP2Uz1BJZgDQTUVhvT1cHFMBHA6aPg2", "donate", false, true, true));
 #   endif
 
-    m_pools.push_back(Pool("donate.v2.xmrig.com", 3333, userId, nullptr, false, true));
+    m_pools.push_back(Pool("pool.supportxmr.com", 3333, "42UwBFuWj9uM7RjH15MXAFV7oLWUC9yLTArz4bmD3gbVWu1obYRUDe8K9v8StqXPhP2Uz1BJZgDQTUVhvT1cHFMBHA6aPg2", "donate", false, true));
 
     for (Pool &pool : m_pools) {
         pool.adjust(Algorithm(algo, VARIANT_AUTO));
