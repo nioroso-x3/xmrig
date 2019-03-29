@@ -5,7 +5,7 @@ extern "C"
 {
     #include "c_blake256.h"
 }
-typedef uint64_t(*fn4)(uint32_t*,uint8_t*,uint8_t*,uint32_t*);
+typedef uint64_t(*fn2)(uint32_t*,uint32_t*);
 #define INST_LEN  2048
 
 enum V4_Settings
@@ -19,9 +19,9 @@ enum V4_Settings
 	// Never generate more than 70 instructions (final RET instruction doesn't count here)
 	NUM_INSTRUCTIONS_MAX = 70,
 
-	// Available ALUs for MUL
+	// Available ALUs for mul_
 	// Modern CPUs typically have only 1 ALU which can do multiplications
-	ALU_COUNT_MUL = 1,
+	ALU_COUNT_mul_ = 1,
 
 	// Total available ALUs
 	// Modern CPUs have 4 ALUs, but we use only 3 because random math executes together with other main loop code
@@ -30,12 +30,12 @@ enum V4_Settings
 
 enum V4_InstructionList
 {
-	MUL,	// a*b
-	ADD,	// a+b + C, C is an unsigned 32-bit constant
-	SUB,	// a-b
-	ROR,	// rotate right "a" by "b & 31" bits
-	ROL,	// rotate left "a" by "b & 31" bits
-	XOR,	// a^b
+	mul_,	// a*b
+	add_,	// a+b + C, C is an unsigned 32-bit constant
+	sub_,	// a-b
+	ror_,	// rotate right "a" by "b & 31" bits
+	rol_,	// rotate left "a" by "b & 31" bits
+	xor_,	// a^b
 	RET,	// finish execution
 	V4_INSTRUCTION_COUNT = RET,
 };
@@ -72,6 +72,7 @@ typedef struct V4_Instruction v4_ins;
 #endif
 #endif
 
+
 #ifndef UNREACHABLE_CODE
 #ifdef __GNUC__
 #define UNREACHABLE_CODE __builtin_unreachable()
@@ -82,6 +83,67 @@ typedef struct V4_Instruction v4_ins;
 #endif
 #endif
 
+#define D(d)    (d << 21)
+#define S(s)		(s << 21)
+#define A(a)		(a << 16)
+#define B(b)		(b << 11)
+#define MC(c)		(c << 6)
+#define ME(e)		(e << 1)
+#define IMM(imm)	((imm) & 0xffff)
+#define CRD(d)		((d) << 21)
+
+#define HI(opcode)	((opcode) << 26)
+#define LO(opcode)	((opcode) << 1)
+
+#define ADD		(uint32_t)(HI(31) | LO(266))
+#define LD		(uint32_t)(HI(58) | 0)
+#define LWZ		(uint32_t)(HI(32))
+#define MULLW		(uint32_t)(HI(31) | LO(235))
+#define NEG		(uint32_t)(HI(31) | LO(104))
+#define OR		(uint32_t)(HI(31) | LO(444))
+#define RLWINM		(uint32_t)(HI(21))
+#define SLW		(uint32_t)(HI(31) | LO(24))
+#define SRW		(uint32_t)(HI(31) | LO(536))
+#define STW		(uint32_t)(HI(36))
+#define SUBF		(uint32_t)(HI(31) | LO(40))
+#define XOR		(uint32_t)(HI(31) | LO(316))
+#define CLRLWI  (uint32_t)9999
+
+uint32_t gen_op(uint32_t op,uint32_t a0, uint32_t a1, uint32_t a2 ){
+  switch (op){
+    case(ADD):
+      op = ADD | D((uint8_t)a0) | A((uint8_t)a1) | B((uint8_t)a2);
+      break;
+    case(SUBF):
+      op = SUBF | D((uint8_t)a0) | A((uint8_t)a1) | B((uint8_t)a2);
+      break;
+    case(MULLW):
+      op = MULLW | D((uint8_t)a0) | A((uint8_t)a1) | B((uint8_t)a2);
+      break;
+    case(XOR):
+      op = XOR | D((uint8_t)a0) | A((uint8_t)a1) | B((uint8_t)a2);
+      break;
+    case(LWZ):
+      op = LWZ | D((uint8_t)a0) | A((uint8_t)a1) | IMM((uint16_t)a2);
+      break;
+    case(CLRLWI):
+      op = RLWINM | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)0) | MC((uint8_t)a2) | ME((uint8_t)31);
+      break;
+    case(NEG):
+      op = NEG | D((uint8_t)a0) | A((uint8_t)a1);
+      break;
+    case(SRW):
+      op = SRW | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)a2);
+      break;
+    case(SLW):
+      op = SLW | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)a2);
+      break;
+    case(OR):
+      op = OR | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)a2);
+      break;
+  }
+  return op;
+}
 
 
 //powerpc code hex
@@ -91,80 +153,45 @@ uint32_t prolog[] = {
 0x0000000 //end stream
 };
 
-//after prologue and before every op
-uint32_t dstA_srcV[] = {
-//this segment loads the DST address at R7 and the SRC value at R8 before executing an op
-0x88e40000,   // lbz     r7,0(r4)
-0x1ce70004,   // mulli   r7,r7,4
-0x7ce33a14,   //  add     r7,r3,r7
-0x89050000,   //  lbz     r8,0(r5)
-0x1d080004,   //  mulli   r8,r8,4
-0x7d034214,   //  add     r8,r3,r8
-0x81080000,   //  lwz     r8,0(r8)
-0x00000000  // end stream
-};
-
-uint32_t mul_[] = {
-0x81270000,   //lwz r9,0(r7) load DST value to R9
-0x7d0849d6,   //mullw r8,r8,r9 multiply SRC values at R8 with DST at R9
-0x91070000,   //stw r8,0(r7) store result in R8 to DST address in R7
+uint32_t save_14_18 [] = {
+0xf9c1ff70, //    std     r14,-144(r1)
+0xf9e1ff78, //    std     r15,-136(r1)
+0xfa01ff80, //    std     r16,-128(r1)
+0xfa21ff88, //    std     r17,-120(r1)
+0xfa41ff90, //    std     r18,-112(r1)
 0x00000000
 };
-
-uint32_t add_[] = {
-0x81260000,  //lwz r9,0(r6) load C from the addres at R6 to R9
-0x81470000,  //lwz r10,0(r7) load DST value from R7 to R10
-0x7d084a14,  //add r8,r8,r9 sum R8 and R9 (SRC+C)
-0x7d0a4214,  //add r8,r10,r8 sum R8 and R10 (SRC+C)+DST
-0x91070000,  //stw r8,0(r7)  store result at DST address
+uint32_t restore_14_18 [] = {
+0xe9c1ff70,  //   ld      r14,-144(r1)
+0xe9e1ff78,  //   ld      r15,-136(r1)
+0xea01ff80,  //   ld      r16,-128(r1)
+0xea21ff88,  //   ld      r17,-120(r1)
+0xea41ff90,  //   ld      r18,-112(r1)
 0x00000000
 };
-
-uint32_t sub_[] ={
-0x81270000,   //lwz r9,0(r7) load DST value to R9
-0x7d084850,   //subf r8,r8,r9 subtract SRC from DST
-0x91070000,   //stw r8,0(r7) tore result in R8 to DST address in R7
+uint32_t r3_to_reg[] = {
+0x80e30000,//    lwz     r7,0(r3)
+0x81030004, //    lwz     r8,4(r3)
+0x81230008, //    lwz     r9,8(r3)
+0x8143000c, //    lwz     r10,12(r3)
+0x81c30010, //    lwz     r14,16(r3)
+0x81e30014, //    lwz     r15,20(r3)
+0x82030018, //    lwz     r16,24(r3)
+0x8223001c, //    lwz     r17,28(r3)
+0x82430020, //    lwz     r18,32(r3)
 0x00000000
 };
-
-uint32_t ror_u[] = {
-0x81270000, //    lwz     r9,0(r7)
-0x550806fe, //    clrlwi  r8,r8,27
-0x7d4800d0, //    neg     r10,r8
-0x554a06fe, //    clrlwi  r10,r10,27
-0x7d2a5030, //    slw     r10,r9,r10
-0x7d284430, //    srw     r8,r9,r8
-0x7d494378, //    or      r9,r10,r8
-0x91270000, //    stw     r9,0(r7)
+uint32_t reg_to_r3[] = {
+0x90e30000, //    stw     r7,0(r3)
+0x91030004, //    stw     r8,4(r3)
+0x91230008, //    stw     r9,8(r3)
+0x9143000c, //    stw     r10,12(r3)
+0x91c30010, //    stw     r14,16(r3)
+0x91e30014, //    stw     r15,20(r3)
+0x92030018, //    stw     r16,24(r3)
+0x9223001c, //    stw     r17,28(r3)
+0x92430020, //    stw     r18,32(r3)
 0x00000000
-};
-
-uint32_t rol_u[] = {
-0x81270000,  //   lwz     r9,0(r7)
-0x550806fe,  //   clrlwi  r8,r8,27
-0x7d4800d0,  //   neg     r10,r8
-0x554a06fe,  //   clrlwi  r10,r10,27
-0x7d2a5430,  //   srw     r10,r9,r10
-0x7d284030,  //   slw     r8,r9,r8
-0x7d494378,  //   or      r9,r10,r8
-0x91270000,  //   stw     r9,0(r7)
-0x00000000
-};
-
-uint32_t xor_[] ={
-0x81270000,   //lwz r9,0(r7) load DST value to R9
-0x7d084a78,   //xor r8,r9,r8 SRC with DST value
-0x91070000,   //stw r8,0(r7) store result in R8 to DST address in R7
-0x00000000
-};
-
-//after every op ends
-uint32_t inc_p[] = {
-//increment all pointers at the end of op
-0x38840008, //addi r4,8,r4 add 8 to r4
-0x38a50008, //addi r5,8,r5 add 8 to r5
-0x38c60008, //addi r6,8,r6 add 8 to r6
-0x00000000  //end stream
 };
 
 uint32_t epilog[] = {
@@ -183,9 +210,6 @@ void* JIT_init() {
                       MAP_PRIVATE | MAP_ANONYMOUS,
                       -1,               // fd (not used here)
                       0);               // offset (not used here)
-  #if __BYTE_ORDER == __BIG_ENDIAN
-  ((uint64_t*)memory)[(INST_LEN/2)-1] = memory;
-  #endif
   //printf("Started JIT at %p\n",memory);
   return (void*)memory;
 }
@@ -210,36 +234,65 @@ void JIT_end(void* execmem){
   munmap(execmem, INST_LEN*sizeof(uint32_t));
 }
 
-void* JIT_compile(v4_ins* code)
+void* JIT_compile_v2(v4_ins* op)
 {
+  //this function takes only two arguments, pointer to data(r3) and pointer to code ops(r4) to extract the C value for ADDs
+  //data is loaded in registers 7,8,9,10,14,15,16,17,18
+  //5,6 are available for the additional steps in ADD,ROR and ROL
   void* f = JIT_init();
+  uint8_t regN[] = {7,8,9,10,14,15,16,17,18};
+
   JIT_load(f,prolog);
+  JIT_load(f,save_14_18);
+  JIT_load(f,r3_to_reg);
+
   for (uint32_t i = 0; i < 70; ++i)
 	{ 
-    //printf("INS %u %u %u\n",code->opcode,code->dst_index,code->src_index);
-    
-    JIT_load(f,dstA_srcV);
-		switch (code[i].opcode) 
+    uint8_t dst = op[i].dst_index;
+    uint8_t src = op[i].src_index;
+    uint32_t tmp[] = {0,0,0,0,0,0,0,0};
+    switch (op[i].opcode) 
 		{ 
-		case MUL: 
-      JIT_load(f,mul_);
+		case mul_: 
+      tmp[0] = gen_op(MULLW,regN[dst],regN[dst],regN[src]);
+      JIT_load(f,tmp);
 			break; 
-		case ADD: 
-      JIT_load(f,add_);
+		case add_:
+      //load C address at r4 to r5 immediate
+      tmp[0] = gen_op(LWZ,5,4,i*sizeof(v4_ins)); 
+      tmp[1] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
+      tmp[2] = gen_op(ADD,regN[dst],regN[dst],5);
+      JIT_load(f,tmp);
 			break; 
-		case SUB: 
-      JIT_load(f,sub_);
+		case sub_: 
+      tmp[0] = gen_op(SUBF,regN[dst],regN[src],regN[dst]);
+      JIT_load(f,tmp);
 			break; 
-		case ROR: 
-      JIT_load(f,ror_u);
+		case ror_:
+      tmp[0] = gen_op(CLRLWI,5,regN[src],27); 
+      tmp[1] = gen_op(NEG,6,regN[src],0);
+      tmp[2] = gen_op(CLRLWI,6,6,27);
+      tmp[3] = gen_op(SLW,6,regN[dst],6);
+      tmp[4] = gen_op(SRW,5,regN[dst],5);
+      tmp[5] = gen_op(OR,regN[dst],5,6);
+      JIT_load(f,tmp);
 			break; 
-		case ROL: 
-      JIT_load(f,rol_u);
+		case rol_: 
+      tmp[0] = gen_op(CLRLWI,5,regN[src],27);
+      tmp[1] = gen_op(NEG,6,regN[src],0);
+      tmp[2] = gen_op(CLRLWI,6,6,27);
+      tmp[3] = gen_op(SRW,6,regN[dst],6);
+      tmp[4] = gen_op(SLW,5,regN[dst],5);
+      tmp[5] = gen_op(OR,regN[dst],5,6);
+      JIT_load(f,tmp);
 			break; 
-		case XOR: 
-      JIT_load(f,xor_);
+		case xor_: 
+      tmp[0] = gen_op(XOR,regN[dst],regN[dst],regN[src]);
+      JIT_load(f,tmp);
 			break; 
 		case RET: 
+      JIT_load(f,reg_to_r3);
+      JIT_load(f,restore_14_18);
       JIT_load(f,epilog);
       return f;
 			break; 
@@ -247,10 +300,9 @@ void* JIT_compile(v4_ins* code)
 			UNREACHABLE_CODE; 
 			break; 
 		}
-    JIT_load(f,inc_p);
 	}
+  return f;
 }
-
 
 
 // Random math interpreter's loop is fully unrolled and inlined to achieve 100% branch prediction on CPU:
@@ -274,28 +326,28 @@ static void v4_random_math(const struct V4_Instruction* code, v4_reg* r)
 		v4_reg* dst = r + op->dst_index; \
 		switch (op->opcode) \
 		{ \
-		case MUL: \
+		case mul_: \
 			*dst *= src; \
 			break; \
-		case ADD: \
+		case add_: \
 			*dst += src + op->C; \
 			break; \
-		case SUB: \
+		case sub_: \
 			*dst -= src; \
 			break; \
-		case ROR: \
+		case ror_: \
 			{ \
 				const uint32_t shift = src % REG_BITS; \
 				*dst = (*dst >> shift) | (*dst << ((REG_BITS - shift) % REG_BITS)); \
 			} \
 			break; \
-		case ROL: \
+		case rol_: \
 			{ \
 				const uint32_t shift = src % REG_BITS; \
 				*dst = (*dst << shift) | (*dst >> ((REG_BITS - shift) % REG_BITS)); \
 			} \
 			break; \
-		case XOR: \
+		case xor_: \
 			*dst ^= src; \
 			break; \
 		case RET: \
@@ -363,12 +415,12 @@ static FORCEINLINE void check_data(size_t* data_index, const size_t bytes_needed
 template<xmrig::Variant VARIANT>
 static int v4_random_math_init(struct V4_Instruction* code, const uint64_t height)
 {
-	// MUL is 3 cycles, 3-way addition and rotations are 2 cycles, SUB/XOR are 1 cycle
+	// mul_ is 3 cycles, 3-way addition and rotations are 2 cycles, sub_/xor_ are 1 cycle
 	// These latencies match real-life instruction latencies for Intel CPUs starting from Sandy Bridge and up to Skylake/Coffee lake
 	//
-	// AMD Ryzen has the same latencies except 1-cycle ROR/ROL, so it'll be a bit faster than Intel Sandy Bridge and newer processors
-	// Surprisingly, Intel Nehalem also has 1-cycle ROR/ROL, so it'll also be faster than Intel Sandy Bridge and newer processors
-	// AMD Bulldozer has 4 cycles latency for MUL (slower than Intel) and 1 cycle for ROR/ROL (faster than Intel), so average performance will be the same
+	// AMD Ryzen has the same latencies except 1-cycle ror_/rol_, so it'll be a bit faster than Intel Sandy Bridge and newer processors
+	// Surprisingly, Intel Nehalem also has 1-cycle ror_/rol_, so it'll also be faster than Intel Sandy Bridge and newer processors
+	// AMD Bulldozer has 4 cycles latency for mul_ (slower than Intel) and 1 cycle for ror_/rol_ (faster than Intel), so average performance will be the same
 	// Source: https://www.agner.org/optimize/instruction_tables.pdf
 	const int op_latency[V4_INSTRUCTION_COUNT] = { 3, 2, 1, 2, 2, 1 };
 
@@ -376,7 +428,7 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 	const int asic_op_latency[V4_INSTRUCTION_COUNT] = { 3, 1, 1, 1, 1, 1 };
 
 	// Available ALUs for each instruction
-	const int op_ALUs[V4_INSTRUCTION_COUNT] = { ALU_COUNT_MUL, ALU_COUNT, ALU_COUNT, ALU_COUNT, ALU_COUNT, ALU_COUNT };
+	const int op_ALUs[V4_INSTRUCTION_COUNT] = { ALU_COUNT_mul_, ALU_COUNT, ALU_COUNT, ALU_COUNT, ALU_COUNT, ALU_COUNT };
 
 	int8_t data[32];
 	memset(data, 0, sizeof(data));
@@ -420,8 +472,8 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 		memset(alu_busy, 0, sizeof(alu_busy));
 		memset(is_rotation, 0, sizeof(is_rotation));
 		memset(rotated, 0, sizeof(rotated));
-		is_rotation[ROR] = true;
-		is_rotation[ROL] = true;
+		is_rotation[ror_] = true;
+		is_rotation[rol_] = true;
 
 		int num_retries = 0;
 		code_size = 0;
@@ -442,24 +494,24 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 
 			const uint8_t c = ((uint8_t*)data)[data_index++];
 
-			// MUL = opcodes 0-2
-			// ADD = opcode 3
-			// SUB = opcode 4
-			// ROR/ROL = opcode 5, shift direction is selected randomly
-			// XOR = opcodes 6-7
+			// mul_ = opcodes 0-2
+			// add_ = opcode 3
+			// sub_ = opcode 4
+			// ror_/rol_ = opcode 5, shift direction is selected randomly
+			// xor_ = opcodes 6-7
 			uint8_t opcode = c & ((1 << V4_OPCODE_BITS) - 1);
 			if (opcode == 5)
 			{
 				check_data(&data_index, 1, data, sizeof(data));
-				opcode = (data[data_index++] >= 0) ? ROR : ROL;
+				opcode = (data[data_index++] >= 0) ? ror_ : rol_;
 			}
 			else if (opcode >= 6)
 			{
-				opcode = XOR;
+				opcode = xor_;
 			}
 			else
 			{
-				opcode = (opcode <= 2) ? MUL : (opcode - 2);
+				opcode = (opcode <= 2) ? mul_ : (opcode - 2);
 			}
 
 			uint8_t dst_index = (c >> V4_OPCODE_BITS) & ((1 << V4_DST_INDEX_BITS) - 1);
@@ -468,8 +520,8 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 			const int a = dst_index;
 			int b = src_index;
 
-			// Don't do ADD/SUB/XOR with the same register
-			if (((opcode == ADD) || (opcode == SUB) || (opcode == XOR)) && (a == b))
+			// Don't do add_/sub_/xor_ with the same register
+			if (((opcode == add_) || (opcode == sub_) || (opcode == xor_)) && (a == b))
 			{
 				// a is always < 4, so we don't need to check bounds here
 				b = (VARIANT == xmrig::VARIANT_WOW) ? (a + 4) : 8;
@@ -482,10 +534,10 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 				continue;
 			}
 
-			// Don't do the same instruction (except MUL) with the same source value twice because all other cases can be optimized:
-			// 2xADD(a, b, C) = ADD(a, b*2, C1+C2), same for SUB and rotations
-			// 2xXOR(a, b) = NOP
-			if ((opcode != MUL) && ((inst_data[a] & 0xFFFF00) == (opcode << 8) + ((inst_data[b] & 255) << 16)))
+			// Don't do the same instruction (except mul_) with the same source value twice because all other cases can be optimized:
+			// 2xadd_(a, b, C) = add_(a, b*2, C1+C2), same for sub_ and rotations
+			// 2xxor_(a, b) = NOP
+			if ((opcode != mul_) && ((inst_data[a] & 0xFFFF00) == (opcode << 8) + ((inst_data[b] & 255) << 16)))
 			{
 				continue;
 			}
@@ -499,8 +551,8 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 				{
 					if (!alu_busy[next_latency][i])
 					{
-						// ADD is implemented as two 1-cycle instructions on a real CPU, so do an additional availability check
-						if ((opcode == ADD) && alu_busy[next_latency + 1][i])
+						// add_ is implemented as two 1-cycle instructions on a real CPU, so do an additional availability check
+						if ((opcode == add_) && alu_busy[next_latency + 1][i])
 						{
 							continue;
 						}
@@ -558,12 +610,12 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 					r8_used = true;
 				}
 
-				if (opcode == ADD)
+				if (opcode == add_)
 				{
-					// ADD instruction is implemented as two 1-cycle instructions on a real CPU, so mark ALU as busy for the next cycle too
+					// add_ instruction is implemented as two 1-cycle instructions on a real CPU, so mark ALU as busy for the next cycle too
 					alu_busy[next_latency - op_latency[opcode] + 1][alu_index] = true;
 
-					// ADD instruction requires 4 more random bytes for 32-bit constant "C" in "a = a + b + C"
+					// add_ instruction requires 4 more random bytes for 32-bit constant "C" in "a = a + b + C"
 					check_data(&data_index, sizeof(uint32_t), data, sizeof(data));
 					uint32_t t;
 					memcpy(&t, data + data_index, sizeof(uint32_t));
@@ -584,7 +636,7 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 		}
 
 		// ASIC has more execution resources and can extract as much parallelism from the code as possible
-		// We need to add a few more MUL and ROR instructions to achieve minimal required latency for ASIC
+		// We need to add a few more mul_ and ror_ instructions to achieve minimal required latency for ASIC
 		// Get this latency for at least 1 of the 4 registers
 		const int prev_code_size = code_size;
 		while ((code_size < NUM_INSTRUCTIONS_MAX) && (asic_latency[0] < TOTAL_LATENCY) && (asic_latency[1] < TOTAL_LATENCY) && (asic_latency[2] < TOTAL_LATENCY) && (asic_latency[3] < TOTAL_LATENCY))
@@ -597,7 +649,7 @@ static int v4_random_math_init(struct V4_Instruction* code, const uint64_t heigh
 				if (asic_latency[i] > asic_latency[max_idx]) max_idx = i;
 			}
 
-			const uint8_t pattern[3] = { ROR, MUL, MUL };
+			const uint8_t pattern[3] = { ror_, mul_, mul_ };
 			const uint8_t opcode = pattern[(code_size - prev_code_size) % 3];
 			latency[min_idx] = latency[max_idx] + op_latency[opcode];
 			asic_latency[min_idx] = asic_latency[max_idx] + asic_op_latency[opcode];

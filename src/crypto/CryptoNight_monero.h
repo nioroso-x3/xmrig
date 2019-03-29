@@ -200,8 +200,7 @@
     r##part[6] = static_cast<uint32_t>(_mm_cvtsi128_si32(bx0)); \
     r##part[7] = static_cast<uint32_t>(_mm_cvtsi128_si32(bx1)); \
     r##part[8] = static_cast<uint32_t>(_mm_cvtsi128_si32(_mm_srli_si128(bx1, 8))); \
-    v4jit(r##part,&code##part->dst_index,&code##part->src_index,&code##part->C); \
+    v4jit(r##part,&code##part->C); \
   }
-//v4_random_math(code##part,r##part);\
 
 #endif /* XMRIG_CRYPTONIGHT_MONERO_H */

@@ -559,11 +559,11 @@ inline void cryptonight_single_hash(const uint8_t *__restrict__ input, size_t si
       if(ctx[0]->v4jit != NULL){
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn4 v4jit = (fn4)ctx[0]->v4jit; 
+    fn2 v4jit = (fn2)ctx[0]->v4jit; 
 
     uint64_t al0 = h0[0] ^ h0[4];
     uint64_t ah0 = h0[1] ^ h0[5];
@@ -939,11 +939,11 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn4 v4jit = (fn4)ctx[0]->v4jit;
+    fn2 v4jit = (fn2)ctx[0]->v4jit;
 
     cn_explode_scratchpad<ALGO, MEM, SOFT_AES>((__m128i*) h0, (__m128i*) l0);
     cn_explode_scratchpad<ALGO, MEM, SOFT_AES>((__m128i*) h1, (__m128i*) l1);
@@ -1266,11 +1266,11 @@ inline void cryptonight_triple_hash(const uint8_t *__restrict__ input, size_t si
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn4 v4jit = (fn4)ctx[0]->v4jit;
+    fn2 v4jit = (fn2)ctx[0]->v4jit;
     VARIANT2_SET_ROUNDING_MODE();
 
     uint64_t idx0, idx1, idx2;
@@ -1342,11 +1342,11 @@ inline void cryptonight_quad_hash(const uint8_t *__restrict__ input, size_t size
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn4 v4jit = (fn4)ctx[0]->v4jit;
+    fn2 v4jit = (fn2)ctx[0]->v4jit;
 
     VARIANT2_SET_ROUNDING_MODE();
 
@@ -1428,11 +1428,11 @@ inline void cryptonight_penta_hash(const uint8_t *__restrict__ input, size_t siz
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn4 v4jit = (fn4)ctx[0]->v4jit;
+    fn2 v4jit = (fn2)ctx[0]->v4jit;
 
     VARIANT2_SET_ROUNDING_MODE();
 
