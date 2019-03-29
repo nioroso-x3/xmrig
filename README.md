@@ -110,7 +110,7 @@ Also you can use configuration via config file, default name **config.json**. So
 
 
 ### CPU mining performance
-* POWER8 @ 2.8 GHz, 1 core running 4 single threads -> 16 H/s per core, currently optimizing JIT, interpreter gets half this number. CNv8 was around 60.
+* POWER8 @ 2.8 GHz, 1 core running 4 single threads,SMT8 enabled -> 50 H/s .
 
 Please note performance is highly dependent on system load. The numbers above are obtained on an idle system. Tasks heavily using a processor cache, such as video playback, can greatly degrade hashrate. Optimal number of threads depends on the size of the L3 cache of a processor, 1 thread requires 2 MB of cache.
 
