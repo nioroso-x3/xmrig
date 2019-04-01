@@ -254,7 +254,8 @@ void* JIT_compile_v3(v4_ins* op)
   //5,6 are available for the additional steps in ADD,ROR and ROL
   void* f = JIT_init();
   uint8_t regN[] = {7,8,9,10,14,15,16,17,18};
-
+  uint8_t useRegs0[] = {5,6,11,12};
+  uint8_t useRegs1[] = {6,11,12,5};
   JIT_load(f,prolog);
   JIT_load(f,save_14_18);
   JIT_load(f,r3_to_reg);
@@ -265,6 +266,8 @@ void* JIT_compile_v3(v4_ins* op)
     uint8_t src = op[i].src_index;
     uint32_t tmp[] = {0,0,0,0,0,0,0,0};
     uint16_t* C;
+    uint8_t r0 = useRegs0[i%4];
+    uint8_t r1 = useRegs1[i%4];
     switch (op[i].opcode) 
 		{ 
 		case mul_: 
@@ -274,10 +277,10 @@ void* JIT_compile_v3(v4_ins* op)
 		case add_:
       C = (uint16_t*)&op[i].C;
       // tmp[0] = gen_op(XOR,5,5,5); //zero r5
-      tmp[0] = gen_op(ADDIS,5,0,C[1]); // load upper 16bits
-      tmp[1] = gen_op(ORI,5,5,C[0]);   // load lower 16bits
+      tmp[0] = gen_op(ADDIS,r0,0,C[1]); // load upper 16bits
+      tmp[1] = gen_op(ORI,r0,r0,C[0]);   // load lower 16bits
       tmp[2] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
-      tmp[3] = gen_op(ADD,regN[dst],regN[dst],5);
+      tmp[3] = gen_op(ADD,regN[dst],regN[dst],r0);
       JIT_load(f,tmp);
 			break; 
 		case sub_: 
@@ -285,21 +288,21 @@ void* JIT_compile_v3(v4_ins* op)
       JIT_load(f,tmp);
 			break; 
 		case ror_:
-      tmp[0] = gen_op(CLRLWI,5,regN[src],27); 
-      tmp[1] = gen_op(NEG,6,regN[src],0);
-      tmp[2] = gen_op(CLRLWI,6,6,27);
-      tmp[3] = gen_op(SLW,6,regN[dst],6);
-      tmp[4] = gen_op(SRW,5,regN[dst],5);
-      tmp[5] = gen_op(OR,regN[dst],5,6);
+      tmp[0] = gen_op(CLRLWI,r0,regN[src],27); 
+      tmp[1] = gen_op(NEG,r1,regN[src],0);
+      tmp[2] = gen_op(CLRLWI,r1,r1,27);
+      tmp[3] = gen_op(SLW,r1,regN[dst],r1);
+      tmp[4] = gen_op(SRW,r0,regN[dst],r0);
+      tmp[5] = gen_op(OR,regN[dst],r0,r1);
       JIT_load(f,tmp);
 			break; 
 		case rol_: 
-      tmp[0] = gen_op(CLRLWI,5,regN[src],27);
-      tmp[1] = gen_op(NEG,6,regN[src],0);
-      tmp[2] = gen_op(CLRLWI,6,6,27);
-      tmp[3] = gen_op(SRW,6,regN[dst],6);
-      tmp[4] = gen_op(SLW,5,regN[dst],5);
-      tmp[5] = gen_op(OR,regN[dst],5,6);
+      tmp[0] = gen_op(CLRLWI,r0,regN[src],27);
+      tmp[1] = gen_op(NEG,r1,regN[src],0);
+      tmp[2] = gen_op(CLRLWI,r1,r1,27);
+      tmp[3] = gen_op(SRW,r1,regN[dst],r1);
+      tmp[4] = gen_op(SLW,r0,regN[dst],r0);
+      tmp[5] = gen_op(OR,regN[dst],r0,r1);
       JIT_load(f,tmp);
 			break; 
 		case xor_: 
