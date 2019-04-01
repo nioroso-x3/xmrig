@@ -6,6 +6,7 @@ extern "C"
     #include "c_blake256.h"
 }
 typedef uint64_t(*fn2)(uint32_t*,uint32_t*);
+typedef uint64_t(*fn1)(uint32_t*);
 #define INST_LEN  2048
 
 enum V4_Settings
@@ -96,12 +97,15 @@ typedef struct V4_Instruction v4_ins;
 #define LO(opcode)	((opcode) << 1)
 
 #define ADD		(uint32_t)(HI(31) | LO(266))
+#define ADDI  (uint32_t)(HI(14))
+#define ADDIS (uint32_t)(HI(15))
 #define LD		(uint32_t)(HI(58) | 0)
 #define LWZ		(uint32_t)(HI(32))
 #define MULLW		(uint32_t)(HI(31) | LO(235))
 #define NEG		(uint32_t)(HI(31) | LO(104))
-#define OR		(uint32_t)(HI(31) | LO(444))
-#define RLWINM		(uint32_t)(HI(21))
+#define OR	 	(uint32_t)(HI(31) | LO(444))
+#define ORI    (uint32_t)(HI(24))
+#define RLWINM (uint32_t)(HI(21))
 #define SLW		(uint32_t)(HI(31) | LO(24))
 #define SRW		(uint32_t)(HI(31) | LO(536))
 #define STW		(uint32_t)(HI(36))
@@ -140,6 +144,15 @@ uint32_t gen_op(uint32_t op,uint32_t a0, uint32_t a1, uint32_t a2 ){
       break;
     case(OR):
       op = OR | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)a2);
+      break;
+    case(ORI):
+      op = ORI | S((uint8_t)a1) | A((uint8_t)a0) | IMM((uint16_t)a2);
+      break;
+    case(ADDIS):
+      op = ADDIS | D((uint8_t)a0) | A((uint8_t)a1) | IMM((uint16_t)a2);
+      break;
+    case(ADDI):
+      op = ADDI | D((uint8_t)a0) | A((uint8_t)a1) | IMM((uint16_t)a2);
       break;
   }
   return op;
@@ -234,9 +247,9 @@ void JIT_end(void* execmem){
   munmap(execmem, INST_LEN*sizeof(uint32_t));
 }
 
-void* JIT_compile_v2(v4_ins* op)
+void* JIT_compile_v3(v4_ins* op)
 {
-  //this function takes only two arguments, pointer to data(r3) and pointer to code ops(r4) to extract the C value for ADDs
+  //this function takes only one argument, pointer to data. C values are encoded directly in immediate add instructions.
   //data is loaded in registers 7,8,9,10,14,15,16,17,18
   //5,6 are available for the additional steps in ADD,ROR and ROL
   void* f = JIT_init();
@@ -251,6 +264,7 @@ void* JIT_compile_v2(v4_ins* op)
     uint8_t dst = op[i].dst_index;
     uint8_t src = op[i].src_index;
     uint32_t tmp[] = {0,0,0,0,0,0,0,0};
+    uint16_t* C;
     switch (op[i].opcode) 
 		{ 
 		case mul_: 
@@ -258,10 +272,12 @@ void* JIT_compile_v2(v4_ins* op)
       JIT_load(f,tmp);
 			break; 
 		case add_:
-      //load C address at r4 to r5 immediate
-      tmp[0] = gen_op(LWZ,5,4,i*sizeof(v4_ins)); 
-      tmp[1] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
-      tmp[2] = gen_op(ADD,regN[dst],regN[dst],5);
+      C = (uint16_t*)&op[i].C;
+      // tmp[0] = gen_op(XOR,5,5,5); //zero r5
+      tmp[0] = gen_op(ADDIS,5,0,C[1]); // load upper 16bits
+      tmp[1] = gen_op(ORI,5,5,C[0]);   // load lower 16bits
+      tmp[2] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
+      tmp[3] = gen_op(ADD,regN[dst],regN[dst],5);
       JIT_load(f,tmp);
 			break; 
 		case sub_: 

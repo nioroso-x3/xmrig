@@ -9,10 +9,29 @@ typedef __vector double __m128d;
 typedef __vector unsigned char __m128i;
 typedef __vector unsigned long long __m128ll;
 typedef __vector unsigned int __m128l;
+#define _MM_SHUFFLE(w,x,y,z) (((w) << 6) | ((x) << 4) | ((y) << 2) | (z))
+
+static inline __m128i vec_zero1q (void)
+{
+  return (__m128i) (vector signed int) vec_splats (0);
+}
+/* Splat 8-bit char to 16 8-bit chars */
+static inline __m128i vec_splat16sb (char scalar)
+{ return (__m128i) vec_splats ((signed char) scalar); }
+
+/* Splat 16-bit short to 8 16-bit shorts */
+static inline __m128i vec_splat8sh (short scalar)
+{ return (__m128i) vec_splats (scalar); }
+
+/* Splat 32-bit int to 4 32-bit ints */
+static inline __m128i vec_splat4sw (int scalar)
+{ return (__m128i) vec_splats (scalar); }
+
+/* Splat 64-bit long long to 2 64-bit long longs */
+static inline __m128i vec_splat2sd (long long scalar)
+{ return (__m128i) vec_splats (scalar); }
 
 
-// From GCC
-// https://patchwork.ozlabs.org/patch/827215/
 static inline __m128d _mm_set1_pd (double __F)
 {
   return __extension__ (__m128d){ __F, __F };
@@ -79,6 +98,11 @@ static inline __m128i _mm_slli_si128(__m128i __A, const unsigned long bytecount)
 static inline __m128i _mm_xor_si128(__m128i __A, __m128i __B)
 {
   return vec_xor(__A,__B);
+}
+
+static inline __m128i _mm_or_si128(__m128i __A, __m128i __B)
+{
+  return vec_or(__A,__B);
 }
 
 static inline __m128d _mm_castsi128_pd(__m128i __A)
@@ -154,7 +178,7 @@ static inline __m128d _mm_cvtsi64_sd (__m128d __A, long long __B)
   return (__m128d)result;
 }
 
-static inline __m128i _mm_bsrli_si128 (__m128i __A, const int __N)
+static inline __m128i _mm_srli_si128 (__m128i __A, int __N)
 {
   __vector unsigned char result;
   const __vector unsigned char zeros =
@@ -179,9 +203,22 @@ static inline __m128i _mm_bsrli_si128 (__m128i __A, const int __N)
   return (__m128i) result;
 }
 
-static inline __m128i _mm_srli_si128 (__m128i __A, const int __N)
+static inline __m128i _mm_slli_si128 (__m128i v, int bytecount)
 {
-  return _mm_bsrli_si128 (__A, __N);
+  if ((unsigned long) bytecount >= 16)
+  {
+    /* SSE2 shifts >= element_size or < 0 produce 0; Altivec/MMX shifts by bytecount%element_size. */
+    return (__m128i) vec_splats (0);
+  } else if (bytecount == 0) {
+    return v;
+  } else {
+    /* The PowerPC byte shift count must be multiplied by 8. */
+    /* It need not but can be replicated, which handles both LE and BE shift count positioning. */
+    __m128i replicated_count;
+    replicated_count = vec_splat16sb (bytecount << 3);
+    /* AT gcc v7.1 may miscompile vec_sro as vec_slo? */
+    return (__m128i) vec_sro (v, replicated_count);
+  }
 }
 
 static inline __m128i _mm_setzero_si128 (void)
@@ -195,11 +232,45 @@ return vec_perm(a,b,(__m128i){0x18,0x19,0x1A,0x1B,
                               0xC,0xD,0xE,0xF});
 }
 
-// End from GCC
+static inline __m128l _mm_set1_epi32 ( uint32_t v){
+  return (__m128l){v};
+}
+static inline __m128 _mm_set1_ps ( float v){
+  return (__m128){v};
+}
 
-#if defined(__GNUC__) || defined(__clang__)
-#	pragma pop_macro("ALIGN_STRUCT")
-#	pragma pop_macro("FORCE_INLINE")
-#endif
+static inline __m128l _mm_cvttps_epi32(__m128 __A)
+{
+  return (__m128l) __A;
+}
+
+static inline __m128 _mm_cvtepi32_ps(__m128l __A){
+  return (__m128)__A;
+}
+
+static inline __m128 _mm_and_ps(__m128 __A,__m128 __B){
+  return (__m128)vec_and(__A,__B);
+}
+
+static inline __m128 _mm_or_ps(__m128 __A,__m128 __B){
+  return (__m128)vec_or(__A,__B);
+}
+
+static inline __m128 _mm_add_ps(__m128 __A,__m128 __B){
+  return (__m128)vec_add(__A,__B);
+}
+
+static inline __m128 _mm_mul_ps(__m128 __A,__m128 __B){
+  return (__m128)vec_add(__A,__B);
+}
+
+static inline __m128 _mm_sub_ps(__m128 __A,__m128 __B){
+  return (__m128)vec_sub(__A,__B);
+}
+
+static inline __m128 _mm_div_ps(__m128 __A,__m128 __B){
+  return (__m128)vec_div(__A,__B);
+}
+
 
 #endif

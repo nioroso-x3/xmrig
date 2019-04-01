@@ -82,28 +82,28 @@ static inline uint64_t __umul128(uint64_t a, uint64_t b, uint64_t* hi)
 // sl_xor(a1 a2 a3 a4) = a1 (a2^a1) (a3^a2^a1) (a4^a3^a2^a1)
 static inline __m128i sl_xor(__m128i tmp1)
 {
-    __m128i tmp4;
-    tmp4 = _mm_slli_si128(tmp1, 0x04);
-    tmp1 = _mm_xor_si128(tmp1, tmp4);
-    tmp4 = _mm_slli_si128(tmp4, 0x04);
-    tmp1 = _mm_xor_si128(tmp1, tmp4);
-    tmp4 = _mm_slli_si128(tmp4, 0x04);
-    tmp1 = _mm_xor_si128(tmp1, tmp4);
-    return tmp1;
+  __m128i tmp4;
+  tmp4 = vec_slo(tmp1, (__m128i){0x20});
+  tmp1 = vec_xor(tmp1, tmp4);
+  tmp4 = vec_slo(tmp4, (__m128i){0x20});
+  tmp1 = vec_xor(tmp1, tmp4);
+  tmp4 = vec_slo(tmp4, (__m128i){0x20});
+  tmp1 = vec_xor(tmp1, tmp4);
+  return tmp1;
 }
 
 
 template<uint8_t rcon>
 static inline void aes_genkey_sub(__m128i* xout0, __m128i* xout2)
 {
-    __m128i xout1 = _mm_aeskeygenassist_si128(*xout2, rcon);
-    xout1  = _mm_shuffle_epi32(xout1, 0xFF); // see PSHUFD, set all elems to 4th elem
-    *xout0 = sl_xor(*xout0);
-    *xout0 = _mm_xor_si128(*xout0, xout1);
-    xout1  = _mm_aeskeygenassist_si128(*xout0, 0x00);
-    xout1  = _mm_shuffle_epi32(xout1, 0xAA); // see PSHUFD, set all elems to 3rd elem
-    *xout2 = sl_xor(*xout2);
-    *xout2 = _mm_xor_si128(*xout2, xout1);
+  __m128i xout1 = _mm_aeskeygenassist_si128(*xout2, rcon);
+  xout1 = vec_perm(xout1,xout1,(__m128i){0xc,0xd,0xe,0xf, 0xc,0xd,0xe,0xf, 0xc,0xd,0xe,0xf, 0xc,0xd,0xe,0xf}); 
+  *xout0 = sl_xor(*xout0);
+  *xout0 = vec_xor(*xout0, xout1);
+  xout1 = _mm_aeskeygenassist_si128(*xout0, 0x00);
+  xout1 = vec_perm(xout1,xout1,(__m128i){0x8,0x9,0xa,0xb, 0x8,0x9,0xa,0xb, 0x8,0x9,0xa,0xb, 0x8,0x9,0xa,0xb});
+  *xout2 = sl_xor(*xout2);
+  *xout2 = vec_xor(*xout2, xout1);
 }
 
 
@@ -124,27 +124,39 @@ static inline void soft_aes_genkey_sub(__m128i* xout0, __m128i* xout2)
 template<bool SOFT_AES>
 static inline void aes_genkey(const __m128i* memory, __m128i* k0, __m128i* k1, __m128i* k2, __m128i* k3, __m128i* k4, __m128i* k5, __m128i* k6, __m128i* k7, __m128i* k8, __m128i* k9)
 {
-    __m128i xout0 = _mm_load_si128(memory);
-    __m128i xout2 = _mm_load_si128(memory + 1);
+    __m128i xout0 = vec_ld(0,memory);
+    __m128i xout2 = vec_ld(16,memory);
     *k0 = xout0;
     *k1 = xout2;
-
-    SOFT_AES ? soft_aes_genkey_sub<0x01>(&xout0, &xout2) : aes_genkey_sub<0x01>(&xout0, &xout2);
-    *k2 = xout0;
-    *k3 = xout2;
-
-    SOFT_AES ? soft_aes_genkey_sub<0x02>(&xout0, &xout2) : aes_genkey_sub<0x02>(&xout0, &xout2);
-    *k4 = xout0;
-    *k5 = xout2;
-
-    SOFT_AES ? soft_aes_genkey_sub<0x04>(&xout0, &xout2) : aes_genkey_sub<0x04>(&xout0, &xout2);
-    *k6 = xout0;
-    *k7 = xout2;
-
-    SOFT_AES ? soft_aes_genkey_sub<0x08>(&xout0, &xout2) : aes_genkey_sub<0x08>(&xout0, &xout2);
-    *k8 = xout0;
-    *k9 = xout2;
-}
+    if(SOFT_AES){
+      soft_aes_genkey_sub<0x01>(&xout0, &xout2);
+      *k2 = xout0;
+      *k3 = xout2;
+      soft_aes_genkey_sub<0x02>(&xout0, &xout2);
+      *k4 = xout0;
+      *k5 = xout2;
+      soft_aes_genkey_sub<0x04>(&xout0, &xout2);
+      *k6 = xout0;
+      *k7 = xout2;
+      soft_aes_genkey_sub<0x08>(&xout0, &xout2);
+      *k8 = xout0;
+      *k9 = xout2;
+    }
+    else{
+      aes_genkey_sub<0x01>(&xout0, &xout2);
+      *k2 = xout0;
+      *k3 = xout2;
+      aes_genkey_sub<0x02>(&xout0, &xout2);
+      *k4 = xout0;
+      *k5 = xout2;
+      aes_genkey_sub<0x04>(&xout0, &xout2);
+      *k6 = xout0;
+      *k7 = xout2;
+      aes_genkey_sub<0x08>(&xout0, &xout2);
+      *k8 = xout0;
+      *k9 = xout2;
+    }
+ }
 
 
 static FORCEINLINE void soft_aesenc(void* __restrict ptr, const void* __restrict key, const uint32_t* __restrict t)
@@ -545,11 +557,11 @@ inline void cryptonight_single_hash(const uint8_t *__restrict__ input, size_t si
       if(ctx[0]->v4jit != NULL){
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v3(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn2 v4jit = (fn2)ctx[0]->v4jit; 
+    fn1 v4jit = (fn1)ctx[0]->v4jit; 
 
     uint64_t al0 = h0[0] ^ h0[4];
     uint64_t ah0 = h0[1] ^ h0[5];
@@ -659,12 +671,9 @@ inline void cryptonight_single_hash(const uint8_t *__restrict__ input, size_t si
 
 
 #ifndef XMRIG_NO_CN_GPU
-template<size_t ITER, uint32_t MASK>
-void cn_gpu_inner_avx(const uint8_t *spad, uint8_t *lpad);
-
 
 template<size_t ITER, uint32_t MASK>
-void cn_gpu_inner_ssse3(const uint8_t *spad, uint8_t *lpad);
+void cn_gpu_inner_altivec(const uint8_t *spad, uint8_t *lpad);
 
 
 template<xmrig::Algo ALGO, bool SOFT_AES, xmrig::Variant VARIANT>
@@ -679,17 +688,9 @@ inline void cryptonight_single_hash_gpu(const uint8_t *__restrict__ input, size_
     xmrig::keccak(input, size, ctx[0]->state);
     cn_explode_scratchpad_gpu<ALGO, MEM>(ctx[0]->state, ctx[0]->memory);
 
-#   ifdef _MSC_VER
-    _control87(RC_NEAR, MCW_RC);
-#   else
     fesetround(FE_TONEAREST);
-#   endif
 
-    if (xmrig::Cpu::info()->hasAVX2()) {
-        cn_gpu_inner_avx<ITERATIONS, MASK>(ctx[0]->state, ctx[0]->memory);
-    } else {
-        cn_gpu_inner_ssse3<ITERATIONS, MASK>(ctx[0]->state, ctx[0]->memory);
-    }
+    cn_gpu_inner_altivec<ITERATIONS, MASK>(ctx[0]->state, ctx[0]->memory);
 
     cn_implode_scratchpad<xmrig::CRYPTONIGHT_HEAVY, MEM, SOFT_AES>((__m128i*) ctx[0]->memory, (__m128i*) ctx[0]->state);
 
@@ -925,11 +926,11 @@ inline void cryptonight_double_hash(const uint8_t *__restrict__ input, size_t si
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v3(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn2 v4jit = (fn2)ctx[0]->v4jit;
+    fn1 v4jit = (fn1)ctx[0]->v4jit;
 
     cn_explode_scratchpad<ALGO, MEM, SOFT_AES>((__m128i*) h0, (__m128i*) l0);
     cn_explode_scratchpad<ALGO, MEM, SOFT_AES>((__m128i*) h1, (__m128i*) l1);
@@ -1252,11 +1253,11 @@ inline void cryptonight_triple_hash(const uint8_t *__restrict__ input, size_t si
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v3(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn2 v4jit = (fn2)ctx[0]->v4jit;
+    fn1 v4jit = (fn1)ctx[0]->v4jit;
     VARIANT2_SET_ROUNDING_MODE();
 
     uint64_t idx0, idx1, idx2;
@@ -1328,11 +1329,11 @@ inline void cryptonight_quad_hash(const uint8_t *__restrict__ input, size_t size
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v3(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn2 v4jit = (fn2)ctx[0]->v4jit;
+    fn1 v4jit = (fn1)ctx[0]->v4jit;
 
     VARIANT2_SET_ROUNDING_MODE();
 
@@ -1414,11 +1415,11 @@ inline void cryptonight_penta_hash(const uint8_t *__restrict__ input, size_t siz
       if(ctx[0]->v4jit != NULL) {
         JIT_end(ctx[0]->v4jit); 
       } 
-      ctx[0]->v4jit = (void*)JIT_compile_v2(code0); 
+      ctx[0]->v4jit = (void*)JIT_compile_v3(code0); 
       ctx[0]->generated_code_data.variant = VARIANT; 
       ctx[0]->generated_code_data.height = height; 
     } 
-    fn2 v4jit = (fn2)ctx[0]->v4jit;
+    fn1 v4jit = (fn1)ctx[0]->v4jit;
 
     VARIANT2_SET_ROUNDING_MODE();
 
