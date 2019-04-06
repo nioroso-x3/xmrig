@@ -111,8 +111,10 @@ typedef struct V4_Instruction v4_ins;
 #define STW		(uint32_t)(HI(36))
 #define SUBF		(uint32_t)(HI(31) | LO(40))
 #define XOR		(uint32_t)(HI(31) | LO(316))
+#define SUBFIC (uint32_t)(HI(8))
 #define CLRLWI  (uint32_t)9999
-
+#define ROTLW (uint32_t)HI(23)
+#define RLWINM_27_31 (uint32_t)9997
 uint32_t gen_op(uint32_t op,uint32_t a0, uint32_t a1, uint32_t a2 ){
   switch (op){
     case(ADD):
@@ -129,6 +131,9 @@ uint32_t gen_op(uint32_t op,uint32_t a0, uint32_t a1, uint32_t a2 ){
       break;
     case(LWZ):
       op = LWZ | D((uint8_t)a0) | A((uint8_t)a1) | IMM((uint16_t)a2);
+      break;
+    case(SUBFIC):
+      op = SUBFIC | D((uint8_t)a0) | A((uint8_t)a1) | IMM((uint16_t)a2);
       break;
     case(CLRLWI):
       op = RLWINM | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)0) | MC((uint8_t)a2) | ME((uint8_t)31);
@@ -154,11 +159,15 @@ uint32_t gen_op(uint32_t op,uint32_t a0, uint32_t a1, uint32_t a2 ){
     case(ADDI):
       op = ADDI | D((uint8_t)a0) | A((uint8_t)a1) | IMM((uint16_t)a2);
       break;
+    case(ROTLW):
+      op = ROTLW | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)a2) | MC((uint8_t)0) | ME((uint8_t)31);
+      break;
+    case(RLWINM_27_31):
+      op = RLWINM | S((uint8_t)a1) | A((uint8_t)a0) | B((uint8_t)a2) | MC((uint8_t)27) | ME((uint8_t)31);
+      break;
   }
   return op;
 }
-
-
 //powerpc code hex
 uint32_t prolog[] = {
 0x7c0802a6,   //mflr r0 save lr to r0
@@ -255,19 +264,17 @@ void* JIT_compile_v3(v4_ins* op)
   void* f = JIT_init();
   uint8_t regN[] = {7,8,9,10,14,15,16,17,18};
   uint8_t useRegs0[] = {5,6,11,12};
-  uint8_t useRegs1[] = {6,11,12,5};
   JIT_load(f,prolog);
   JIT_load(f,save_14_18);
   JIT_load(f,r3_to_reg);
-
+  uint32_t s = 0;
   for (uint32_t i = 0; i < 70; ++i)
 	{ 
     uint8_t dst = op[i].dst_index;
     uint8_t src = op[i].src_index;
     uint32_t tmp[] = {0,0,0,0,0,0,0,0};
     uint16_t* C;
-    uint8_t r0 = useRegs0[i%4];
-    uint8_t r1 = useRegs1[i%4];
+    uint8_t r0 = useRegs0[s%4];
     switch (op[i].opcode) 
 		{ 
 		case mul_: 
@@ -281,6 +288,7 @@ void* JIT_compile_v3(v4_ins* op)
       tmp[1] = gen_op(ORI,r0,r0,C[0]);   // load lower 16bits
       tmp[2] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
       tmp[3] = gen_op(ADD,regN[dst],regN[dst],r0);
+      s++;
       JIT_load(f,tmp);
 			break; 
 		case sub_: 
@@ -288,21 +296,16 @@ void* JIT_compile_v3(v4_ins* op)
       JIT_load(f,tmp);
 			break; 
 		case ror_:
-      tmp[0] = gen_op(CLRLWI,r0,regN[src],27); 
-      tmp[1] = gen_op(NEG,r1,regN[src],0);
-      tmp[2] = gen_op(CLRLWI,r1,r1,27);
-      tmp[3] = gen_op(SLW,r1,regN[dst],r1);
-      tmp[4] = gen_op(SRW,r0,regN[dst],r0);
-      tmp[5] = gen_op(OR,regN[dst],r0,r1);
+      tmp[0] = gen_op(RLWINM_27_31,r0,regN[src],0);
+      tmp[1] = gen_op(SUBFIC,r0,r0,32);
+      tmp[2] = gen_op(ROTLW,regN[dst],regN[dst],r0);
+      s++;
       JIT_load(f,tmp);
 			break; 
 		case rol_: 
-      tmp[0] = gen_op(CLRLWI,r0,regN[src],27);
-      tmp[1] = gen_op(NEG,r1,regN[src],0);
-      tmp[2] = gen_op(CLRLWI,r1,r1,27);
-      tmp[3] = gen_op(SRW,r1,regN[dst],r1);
-      tmp[4] = gen_op(SLW,r0,regN[dst],r0);
-      tmp[5] = gen_op(OR,regN[dst],r0,r1);
+      tmp[0] = gen_op(RLWINM_27_31,r0,regN[src],0);
+      tmp[1] = gen_op(ROTLW,regN[dst],regN[dst],r0);
+      s++;
       JIT_load(f,tmp);
 			break; 
 		case xor_: 

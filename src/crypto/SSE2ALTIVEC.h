@@ -261,7 +261,7 @@ static inline __m128 _mm_add_ps(__m128 __A,__m128 __B){
 }
 
 static inline __m128 _mm_mul_ps(__m128 __A,__m128 __B){
-  return (__m128)vec_add(__A,__B);
+  return (__m128)vec_mul(__A,__B);
 }
 
 static inline __m128 _mm_sub_ps(__m128 __A,__m128 __B){

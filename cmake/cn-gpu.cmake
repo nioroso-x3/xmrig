@@ -1,3 +1,7 @@
-    set(CN_GPU_SOURCES "")
-
-    add_definitions(/DXMRIG_NO_CN_GPU)
+#if (WITH_CN_GPU AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+#  set(CN_GPU_SOURCES src/crypto/cn_gpu_altivec.cpp)
+#  set_source_files_properties(src/crypto/cn_gpu_arm.cpp PROPERTIES COMPILE_FLAGS "-Ofast -mcpu=native -mtune=native")
+#else()
+  set(CN_GPU_SOURCES "")
+  add_definitions(/DXMRIG_NO_CN_GPU)
+#endif()

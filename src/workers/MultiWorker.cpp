@@ -73,7 +73,6 @@ bool MultiWorker<N>::selfTest()
         if (!rc || N > 1) {
             return rc;
         }
-
         return verify(VARIANT_GPU, test_output_gpu);
 #       else
         return rc;
