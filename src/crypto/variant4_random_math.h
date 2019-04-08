@@ -175,20 +175,46 @@ uint32_t prolog[] = {
 0x0000000 //end stream
 };
 
-uint32_t save_14_18 [] = {
+uint32_t save_reg [] = {
 0xf9c1ff70, //    std     r14,-144(r1)
 0xf9e1ff78, //    std     r15,-136(r1)
 0xfa01ff80, //    std     r16,-128(r1)
 0xfa21ff88, //    std     r17,-120(r1)
 0xfa41ff90, //    std     r18,-112(r1)
+0xfa61ff98, 
+0xfa81ffa0, 
+0xfaa1ffa8, 
+0xfac1ffb0, 
+0xfae1ffb8, 
+0xfb01ffc0, 
+0xfb21ffc8, 
+0xfb41ffd0, 
+0xfb61ffd8, 
+0xfb81ffe0, 
+0xfba1ffe8, 
+0xfbc1fff0, 
+0xfbe1fff8, 
 0x00000000
 };
-uint32_t restore_14_18 [] = {
+uint32_t restore_reg [] = {
 0xe9c1ff70,  //   ld      r14,-144(r1)
 0xe9e1ff78,  //   ld      r15,-136(r1)
 0xea01ff80,  //   ld      r16,-128(r1)
 0xea21ff88,  //   ld      r17,-120(r1)
 0xea41ff90,  //   ld      r18,-112(r1)
+0xea61ff98, 
+0xea81ffa0,  
+0xeaa1ffa8,  
+0xeac1ffb0,  
+0xeae1ffb8,  
+0xeb01ffc0,  
+0xeb21ffc8,  
+0xeb41ffd0, 
+0xeb61ffd8, 
+0xeb81ffe0,  
+0xeba1ffe8, 
+0xebc1fff0,
+0xebe1fff8,            
 0x00000000
 };
 uint32_t r3_to_reg[] = {
@@ -260,12 +286,12 @@ void* JIT_compile_v3(v4_ins* op)
 {
   //this function takes only one argument, pointer to data. C values are encoded directly in immediate add instructions.
   //data is loaded in registers 7,8,9,10,14,15,16,17,18
-  //5,6 are available for the additional steps in ADD,ROR and ROL
+  //as of now, this generator is as fast as gcc-8 and clang-9 generated code. 
   void* f = JIT_init();
   uint8_t regN[] = {7,8,9,10,14,15,16,17,18};
-  uint8_t useRegs0[] = {5,6,11,12};
+  uint8_t useRegs0[] = {5,6,11,12, 19,20,21,22, 23,24,25,26, 27,28,29,30, 31};
   JIT_load(f,prolog);
-  JIT_load(f,save_14_18);
+  JIT_load(f,save_reg);
   JIT_load(f,r3_to_reg);
   uint32_t s = 0;
   for (uint32_t i = 0; i < 70; ++i)
@@ -274,7 +300,7 @@ void* JIT_compile_v3(v4_ins* op)
     uint8_t src = op[i].src_index;
     uint32_t tmp[] = {0,0,0,0,0,0,0,0};
     uint16_t* C;
-    uint8_t r0 = useRegs0[s%4];
+    uint8_t r0 = useRegs0[s%17];
     switch (op[i].opcode) 
 		{ 
 		case mul_: 
@@ -283,11 +309,10 @@ void* JIT_compile_v3(v4_ins* op)
 			break; 
 		case add_:
       C = (uint16_t*)&op[i].C;
-      // tmp[0] = gen_op(XOR,5,5,5); //zero r5
-      tmp[0] = gen_op(ADDIS,r0,0,C[1]); // load upper 16bits
+      tmp[0] = gen_op(ADDIS,r0,0,C[1]); // load upper 16bits and clear
       tmp[1] = gen_op(ORI,r0,r0,C[0]);   // load lower 16bits
-      tmp[2] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
-      tmp[3] = gen_op(ADD,regN[dst],regN[dst],r0);
+      tmp[2] = gen_op(ADD,regN[dst],regN[dst],r0);
+      tmp[3] = gen_op(ADD,regN[dst],regN[dst],regN[src]);
       s++;
       JIT_load(f,tmp);
 			break; 
@@ -296,16 +321,13 @@ void* JIT_compile_v3(v4_ins* op)
       JIT_load(f,tmp);
 			break; 
 		case ror_:
-      tmp[0] = gen_op(RLWINM_27_31,r0,regN[src],0);
-      tmp[1] = gen_op(SUBFIC,r0,r0,32);
-      tmp[2] = gen_op(ROTLW,regN[dst],regN[dst],r0);
+      tmp[0] = gen_op(NEG,r0,regN[src],0);
+      tmp[1] = gen_op(ROTLW,regN[dst],regN[dst],r0);
       s++;
       JIT_load(f,tmp);
 			break; 
 		case rol_: 
-      tmp[0] = gen_op(RLWINM_27_31,r0,regN[src],0);
-      tmp[1] = gen_op(ROTLW,regN[dst],regN[dst],r0);
-      s++;
+      tmp[0] = gen_op(ROTLW,regN[dst],regN[dst],regN[src]);
       JIT_load(f,tmp);
 			break; 
 		case xor_: 
@@ -314,7 +336,7 @@ void* JIT_compile_v3(v4_ins* op)
 			break; 
 		case RET: 
       JIT_load(f,reg_to_r3);
-      JIT_load(f,restore_14_18);
+      JIT_load(f,restore_reg);
       JIT_load(f,epilog);
       return f;
 			break; 
