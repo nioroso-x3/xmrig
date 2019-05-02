@@ -13,7 +13,7 @@ typedef __vector unsigned int __m128l;
 
 static inline __m128i vec_zero1q (void)
 {
-  return (__m128i) (vector signed int) vec_splats (0);
+  return (__m128i) (__vector signed int) vec_splats (0);
 }
 /* Splat 8-bit char to 16 8-bit chars */
 static inline __m128i vec_splat16sb (char scalar)
@@ -34,7 +34,7 @@ static inline __m128i vec_splat2sd (long long scalar)
 
 static inline __m128d _mm_set1_pd (double __F)
 {
-  return __extension__ (__m128d){ __F, __F };
+  return  (__m128d){ __F, __F };
 }
 
 static inline __m128i _mm_load_si128(__m128i const *a)
@@ -123,14 +123,13 @@ static inline __m128 _mm_cvtsi64_ss (__m128 __A, long long __B)
   return __A;
 }
 
-extern __inline __m128 _mm_castsi128(__m128i __A)
+static inline __m128 _mm_castsi128(__m128i __A)
 {
   return (__m128) __A;
 }
-
-extern __inline __m128 _mm_setzero_ps(void)
+static inline __m128 _mm_setzero_ps(void)
 {
-  return __extension__ (__m128){ 0.0f, 0.0f, 0.0f, 0.0f };
+  return  (__m128){ 0.0f, 0.0f, 0.0f, 0.0f };
 }
 
 static inline __m128d _mm_setzero_pd(void)
