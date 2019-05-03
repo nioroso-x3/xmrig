@@ -74,13 +74,13 @@ static void print_cpu(xmrig::Config *config)
     using namespace xmrig;
 
     if (config->isColors()) {
-        Log::i()->text(GREEN_BOLD(" * ") WHITE_BOLD("%-13s%s (%d)") " %sx64 %sAES %sAVX2",
+        Log::i()->text(GREEN_BOLD(" * ") WHITE_BOLD("%-13s%s (%d)") " %sPPC64LE %sAES %sVSX",
                        "CPU",
                        Cpu::info()->brand(),
                        Cpu::info()->sockets(),
                        Cpu::info()->isX64()   ? "\x1B[1;32m" : "\x1B[1;31m-",
                        Cpu::info()->hasAES()  ? "\x1B[1;32m" : "\x1B[1;31m-",
-                       Cpu::info()->hasAVX2() ? "\x1B[1;32m" : "\x1B[1;31m-");
+                       Cpu::info()->hasAVX2() ? "\x1B[1;32m" : "\x1B[1;32m");
 #       ifndef XMRIG_NO_LIBCPUID
         Log::i()->text(GREEN_BOLD(" * ") WHITE_BOLD("%-13s%.1f MB/%.1f MB"), "CPU L2/L3", Cpu::info()->L2() / 1024.0, Cpu::info()->L3() / 1024.0);
 #       endif
@@ -92,7 +92,7 @@ static void print_cpu(xmrig::Config *config)
                        Cpu::info()->sockets(),
                        Cpu::info()->isX64()   ? "" : "-",
                        Cpu::info()->hasAES()  ? "" : "-",
-                       Cpu::info()->hasAVX2() ? "" : "-");
+                       Cpu::info()->hasAVX2() ? "" : "");
 #       ifndef XMRIG_NO_LIBCPUID
         Log::i()->text(" * %-13s%.1f MB/%.1f MB", "CPU L2/L3", Cpu::info()->L2() / 1024.0, Cpu::info()->L3() / 1024.0);
 #       endif

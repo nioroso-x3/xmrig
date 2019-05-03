@@ -13,7 +13,7 @@ Originally based on cpuminer-multi with heavy optimizations/rewrites and removin
 * This is the **CPU-mining** version, there is also a [NVIDIA GPU version](https://github.com/xmrig/xmrig-nvidia) and [AMD GPU version]( https://github.com/xmrig/xmrig-amd).
 * [Roadmap](https://github.com/xmrig/xmrig/issues/106) for next releases.
 
-<img src="http://i.imgur.com/OKZRVDh.png" width="619" >
+<img src="https://i.imgur.com/dX49h2n.png" width="619" >
 
 #### Table of contents
 * [Features](#features)
@@ -21,14 +21,13 @@ Originally based on cpuminer-multi with heavy optimizations/rewrites and removin
 * [Usage](#usage)
 * [Algorithm variations](#algorithm-variations)
 * [Build](https://github.com/xmrig/xmrig/wiki/Build)
-* [Common Issues](#common-issues)
 * [Other information](#other-information)
 * [Donations](#donations)
 * [Release checksums](#release-checksums)
 * [Contacts](#contacts)
 
 ## Features
-* Initial port of CN/R with JIT for ppc64le 
+* CN/R with JIT for ppc64le 
 * Support for backup (failover) mining server.
 * keepalived support.
 * Command line options compatible with cpuminer.
@@ -99,25 +98,19 @@ Also you can use configuration via config file, default name **config.json**. So
 | 1  | 1 (Single)       | yes          |
 | 2  | 2 (Double)       | yes          |
 
-## Common Issues
-### HUGE PAGES unavailable
-* Run XMRig as Administrator.
-* Since version 0.8.0 XMRig automatically enables SeLockMemoryPrivilege for current user, but reboot or sign out still required. [Manual instruction](https://msdn.microsoft.com/en-gb/library/ms190730.aspx).
-
 ## Other information
 * No HTTP support, only stratum protocol support.
 * Default donation 4% (5 minutes in 100 minutes) can be disabled via option `donate-level`.
 
 
 ### CPU mining performance
-* POWER8 @ 2.8 GHz, 1 core running 4 single threads,SMT8 enabled -> 50 H/s .
+* POWER8 @ 2.8 GHz, 1 core running 4 single threads,SMT8 enabled -> ~60 H/s .
 
 Please note performance is highly dependent on system load. The numbers above are obtained on an idle system. Tasks heavily using a processor cache, such as video playback, can greatly degrade hashrate. Optimal number of threads depends on the size of the L3 cache of a processor, 1 thread requires 2 MB of cache.
 
 ### Maximum performance checklist
 * Idle operating system.
 * Do not exceed optimal thread count.
-* Use modern CPUs with AES-NI instruction set.
 * Try setup optimal cpu affinity.
 * Enable fast memory (Large/Huge pages).
 
