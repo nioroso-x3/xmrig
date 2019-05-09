@@ -175,44 +175,29 @@ uint32_t prolog[] = {
 0x0000000 //end stream
 };
 
-uint32_t save_reg [] = {
-0xf9c1ff70, //    std     r14,-144(r1)
-0xf9e1ff78, //    std     r15,-136(r1)
-0xfa01ff80, //    std     r16,-128(r1)
-0xfa21ff88, //    std     r17,-120(r1)
-0xfa41ff90, //    std     r18,-112(r1)
-0x00000000
-};
-uint32_t restore_reg [] = {
-0xe9c1ff70,  //   ld      r14,-144(r1)
-0xe9e1ff78,  //   ld      r15,-136(r1)
-0xea01ff80,  //   ld      r16,-128(r1)
-0xea21ff88,  //   ld      r17,-120(r1)
-0xea41ff90,  //   ld      r18,-112(r1)
-0x00000000
-};
 uint32_t r3_to_reg[] = {
-0x80e30000,//    lwz     r7,0(r3)
-0x81030004, //    lwz     r8,4(r3)
-0x81230008, //    lwz     r9,8(r3)
-0x8143000c, //    lwz     r10,12(r3)
-0x81c30010, //    lwz     r14,16(r3)
-0x81e30014, //    lwz     r15,20(r3)
-0x82030018, //    lwz     r16,24(r3)
-0x8223001c, //    lwz     r17,28(r3)
-0x82430020, //    lwz     r18,32(r3)
+0x80830000,//      lwz 4,0(3)
+0x80A30004,//      lwz 5,4(3)
+0x80C30008,//      lwz 6,8(3)
+0x80E3000C,//      lwz 7,12(3)
+0x81030010,//      lwz 8,16(3)
+0x81230014,//      lwz 9,20(3)
+0x81430018,//      lwz 10,24(3)
+0x8163001C,//      lwz 11,28(3)
+0x81830020,//      lwz 12,32(3)
 0x00000000
 };
+
 uint32_t reg_to_r3[] = {
-0x90e30000, //    stw     r7,0(r3)
-0x91030004, //    stw     r8,4(r3)
-0x91230008, //    stw     r9,8(r3)
-0x9143000c, //    stw     r10,12(r3)
-0x91c30010, //    stw     r14,16(r3)
-0x91e30014, //    stw     r15,20(r3)
-0x92030018, //    stw     r16,24(r3)
-0x9223001c, //    stw     r17,28(r3)
-0x92430020, //    stw     r18,32(r3)
+0x90830000,//      stw 4,0(3)
+0x90A30004,//      stw 5,4(3)
+0x90C30008,//      stw 6,8(3)
+0x90E3000C,//      stw 7,12(3)
+0x91030010,//      stw 8,16(3)
+0x91230014,//      stw 9,20(3)
+0x91430018,//      stw 10,24(3)
+0x9163001C,//      stw 11,28(3)
+0x91830020,//      stw 12,32(3)
 0x00000000
 };
 
@@ -259,22 +244,20 @@ void JIT_end(void* execmem){
 void* JIT_compile_v3(v4_ins* op)
 {
   //this function takes only one argument, pointer to data. C values are encoded directly in immediate add instructions.
-  //data is loaded in registers 7,8,9,10,14,15,16,17,18
+  //data is loaded in registers 4,5,6,7,8,9,10,11,12
+  //register 0 is kept as tmp register for ROR.
   //as of now, this generator is as fast as gcc-8 and clang-9 generated code. 
   void* f = JIT_init();
-  uint8_t regN[] = {7,8,9,10,14,15,16,17,18};
-  uint8_t useRegs0[] = {4,5,6,11, 12,};
+  uint8_t regN[] = {4,5,6,7,8,9,10,11,12};
+  uint8_t r0 = 0;
   JIT_load(f,prolog);
-  JIT_load(f,save_reg);
   JIT_load(f,r3_to_reg);
-  uint32_t s = 0;
   for (uint32_t i = 0; i < 70; ++i)
 	{ 
     uint8_t dst = op[i].dst_index;
     uint8_t src = op[i].src_index;
-    uint32_t tmp[] = {0,0,0,0,0,0,0,0};
+    uint32_t tmp[] = {0,0,0,0};
     int16_t* C;
-    uint8_t r0 = useRegs0[s%sizeof(useRegs0)];
     switch (op[i].opcode) 
 		{ 
 		case mul_: 
@@ -299,7 +282,6 @@ void* JIT_compile_v3(v4_ins* op)
 		case ror_:
       tmp[0] = gen_op(NEG,r0,regN[src],0);
       tmp[1] = gen_op(ROTLW,regN[dst],regN[dst],r0);
-      s++;
       JIT_load(f,tmp);
 			break; 
 		case rol_: 
@@ -312,7 +294,6 @@ void* JIT_compile_v3(v4_ins* op)
 			break; 
 		case RET: 
       JIT_load(f,reg_to_r3);
-      JIT_load(f,restore_reg);
       JIT_load(f,epilog);
       return f;
 			break; 
